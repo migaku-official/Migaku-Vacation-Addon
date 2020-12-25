@@ -8,12 +8,11 @@ import time
 
 class GetAhead(QWidget):
 
-    def __init__(self, mw, path, find):
+    def __init__(self, mw, path):
         super(GetAhead, self).__init__()
         self.mw = mw
         self.path = path
         self.cids = []
-        self.find = find
         self.cardsDay = 0
         self.today = False
         self.tomorrowMessage = 'There are %s review cards due tomorrow with an interval greater than 1 day.'
@@ -29,8 +28,14 @@ class GetAhead(QWidget):
         self.setupLayout()
         self.initHandlers()
 
-    def grabDueNext(self, deck, days = '1'):
-        return self.find.Finder(self.mw.col).findCards('"deck:' + deck + '" "is:duenext'+ days + '"', order= '  c.ivl  ')
+    def getNextDueQuery(self, days, did):
+        today = int((time.time() - self.mw.col.crt) // 86400)
+        return """SELECT c.id FROM cards AS c WHERE (c.queue in (2,3) and c.due > %d and c.due <= %d and c.ivl > 1) AND c.did = %d ORDER BY c.ivl;""" % (today + days - 1, today + days, did)
+
+    def grabDueNext(self, deck, days='1'):
+        query = self.getNextDueQuery(int(days),deck)
+        dueNext = self.mw.col.db.list(query)
+        return dueNext
 
     ###set the maximum cards to the number of cards due tomorrow
     def initHandlers(self):
@@ -79,19 +84,21 @@ class GetAhead(QWidget):
             self.howManyCards.setValue(due)
 
     def cardsStillDue(self, deck):
-        return len(self.find.Finder(self.mw.col).findCards('"deck:' + deck + '" "is:due"')) > 0
+        return len(list(self.mw.col.find_cards('"deck:' + deck + '" "is:due"'))) > 0
 
     def openGetAhead(self):
-        deck = self.mw.col.decks.current()['name']
+        currentDeck =  self.mw.col.decks.current()
+        deckName = currentDeck['name']
+        deckId = currentDeck['id']
         self.today = int((time.time() - self.mw.col.crt) // 86400)
-        if self.cardsStillDue(deck):
+        if self.cardsStillDue(deckName):
             miInfo('To use the Get Ahead feature you must first complete all of today\'s reviews for this deck.')
             return
-        self.cids = self.grabDueNext(deck)
+        self.cids = self.grabDueNext(deckId)
         if self.noneDue():
             count = 2
             while True:
-                self.cids = self.grabDueNext(self.mw.col.decks.current()['name'], str(count))
+                self.cids = self.grabDueNext(deckId, str(count))
                 if not self.noneDue():
                     break
                 count+= 1

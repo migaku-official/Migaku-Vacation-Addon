@@ -10,7 +10,6 @@ from aqt.qt import QAction
 from aqt.utils import showInfo, shortcut
 from aqt.qt import *
 import json
-from . import Pyperclip
 from datetime import datetime
 from aqt.browser import DataModel
 import time
@@ -28,23 +27,8 @@ from .getAhead import GetAhead
 from anki.collection import _Collection
 from aqt.deckconf import DeckConf
 import aqt.importing
-from anki.find import Finder
 from anki.lang import _
-
-
-def findDueTomorrow(self, args):
-    (val, other) = args
-    today = int((time.time() - mw.col.crt) // 86400)
-    if val.startswith("duenext"):
-            days = int(val[7:])
-            return """
-(c.queue in (2,3) and c.due > %d and c.due <= %d and c.ivl > 1)""" % (today + days - 1, today + days)
-    else:
-        return OgFindCardState(self, args)
-
-OgFindCardState = Finder._findCardState
-Finder._findCardState = findDueTomorrow
-
+from anki import Collection
 
 colYoung = "#7c7"
 colMature = "#070"
@@ -63,11 +47,11 @@ colSusp = "#ff0"
 addon_path = dirname(__file__)
 
 
-mw.MigakuRescheduler = MIRescheduler(mw, anki.find, addon_path)
+mw.MigakuRescheduler = MIRescheduler(mw, addon_path)
 
-mw.migakuGetAhead = GetAhead(mw, addon_path, anki.find)
+mw.migakuGetAhead = GetAhead(mw, addon_path)
 
-mw.miSickSched = SickScheduler(mw, addon_path,anki.find, mw.MigakuRescheduler)
+mw.miSickSched = SickScheduler(mw, addon_path, mw.MigakuRescheduler)
 
 VacationScheduler = VacationPicker(mw, addon_path, mw.MigakuRescheduler)
 
@@ -293,14 +277,84 @@ _Collection.undo = wrap(_Collection.undo, mw.miSickSched.attemptReturnSickIds, '
 _Collection.markReview = wrap(_Collection.markReview, mw.miSickSched.clearReturnIds)
 _Collection._markOp = wrap(_Collection._markOp, mw.miSickSched.clearReturnIds)
 
-aqt.importing.onImport = wrap(aqt.importing.onImport, mw.MigakuRescheduler.setupCalendars)
+# aqt.importing.onImport = wrap(aqt.importing.onImport, mw.MigakuRescheduler.setupCalendars)
+
+import zipfile
+import os
+import shutil
+import unicodedata
+from anki.lang import _, ngettext
+from aqt.utils import showWarning, tooltip
+from concurrent.futures import Future
+
+
+def miReplaceWithApkg(mw, filename, backup):
+    mw.progress.start(immediate=True)
+
+    def do_import():
+        z = zipfile.ZipFile(filename)
+
+        # v2 scheduler?
+        colname = "collection.anki21"
+        try:
+            z.getinfo(colname)
+        except KeyError:
+            colname = "collection.anki2"
+
+        with z.open(colname) as source, open(mw.pm.collectionPath(), "wb") as target:
+            # ignore appears related to https://github.com/python/typeshed/issues/4349
+            # see if can turn off once issue fix is merged in
+            shutil.copyfileobj(source, target)
+
+        d = os.path.join(mw.pm.profileFolder(), "collection.media")
+        for n, (cStr, file) in enumerate(
+            json.loads(z.read("media").decode("utf8")).items()
+        ):
+            mw.taskman.run_on_main(
+                lambda n=n: mw.progress.update(
+                    ngettext("Processed %d media file", "Processed %d media files", n)
+                    % n
+                )
+            )
+            size = z.getinfo(cStr).file_size
+            dest = os.path.join(d, unicodedata.normalize("NFC", file))
+            # if we have a matching file size
+            if os.path.exists(dest) and size == os.stat(dest).st_size:
+                continue
+            data = z.read(cStr)
+            with open(dest, "wb") as file:
+                file.write(data)
+
+        z.close()
+
+    def on_done(future: Future):
+        mw.progress.finish()
+
+        try:
+            future.result()
+        except Exception as e:
+            print(e)
+            showWarning(_("The provided file is not a valid .apkg file."))
+            return
+
+        if not mw.loadCollection():
+            return
+        if backup:
+            mw.col.modSchema(check=False)
+
+        tooltip(_("Importing complete."))
+        resetRescheduler()
+        mw.miSickSched.promptCatchUpRemoval()
+
+    mw.taskman.run_in_background(do_import, on_done)
+
 
 
 def resetRescheduler(*args):
     mw.MigakuRescheduler.initScheduler()
     mw.MigakuRescheduler.setupCalendars()
 
-aqt.importing.replaceWithApkg = wrap(aqt.importing.replaceWithApkg, mw.miSickSched.promptCatchUpRemoval)
+
 aqt.preferences.Preferences.accept = wrap(aqt.preferences.Preferences.accept, resetRescheduler)
-aqt.importing.replaceWithApkg = wrap(aqt.importing.replaceWithApkg, resetRescheduler)
+aqt.importing._replaceWithApkg = miReplaceWithApkg
 

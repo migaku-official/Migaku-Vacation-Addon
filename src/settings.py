@@ -7,13 +7,12 @@ from aqt.qt import *
 from aqt.utils import openLink, tooltip
 from anki.utils import isMac, isWin, isLin
 import re
-from . import Pyperclip 
 import os
 from os.path import dirname, join
 from .miutils import miInfo, miAsk
 
 
-verNumber = "1.1.1"
+verNumber = "1.2.0"
 
 class MigakuSVG(QSvgWidget):
     clicked=pyqtSignal()

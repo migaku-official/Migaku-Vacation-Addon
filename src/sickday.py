@@ -4,7 +4,6 @@ from aqt.qt import *
 from os.path import dirname, join, exists
 from aqt.utils import showInfo
 from .miutils import miInfo, miAsk
-from . import Pyperclip
 import math
 from datetime import date
 import time
@@ -13,7 +12,7 @@ import json
 
 class SickScheduler(QWidget):
 
-    def __init__(self, mw, path, find, rescheduler):
+    def __init__(self, mw, path, rescheduler):
         super(SickScheduler, self).__init__()
         self.mw = mw
         self.path = path
@@ -36,7 +35,6 @@ class SickScheduler(QWidget):
         self.resize(400,150)
         self.setupLayout()
         self.initHandlers()
-        self.find = find
         self.sickIds = {}
         self.idsToRemove = []
         self.idsToReturn = []
@@ -226,15 +224,15 @@ class SickScheduler(QWidget):
       
     def grabLearning(self, deck = False):
         if not deck:
-            return self.find.Finder(self.mw.col).findCards('is:learn', order= '  c.reps  ')
+            return list(self.mw.col.find_cards('is:learn', order= '  c.reps  '))
         else:
-            return self.find.Finder(self.mw.col).findCards('"deck:' + deck + '" "is:learn"', order= '  c.reps  ')
+            return list(self.mw.col.find_cards('"deck:' + deck + '" "is:learn"', order= '  c.reps  '))
 
     def grabReviews(self,  deck = False):
         if not deck:
-            return self.find.Finder(self.mw.col).findCards('is:review', order= ' c.ivl ')
+            return list(self.mw.col.find_cards('is:review', order= ' c.ivl '))
         else:
-            return self.find.Finder(self.mw.col).findCards('"deck:' + deck + '" "is:review"', order= ' c.ivl ')
+            return list(self.mw.col.find_cards('"deck:' + deck + '" "is:review"', order= ' c.ivl '))
 
     def breakByDays(self, a, n = 3):
         k, m = divmod(len(a), n)
@@ -251,6 +249,7 @@ class SickScheduler(QWidget):
         if not self.scheduleToday.isChecked():
             first += 1
             adjust = 1
+
         for cid in self.cards:
             card = self.mw.col.getCard(cid)
             if card.odid:
@@ -265,7 +264,7 @@ class SickScheduler(QWidget):
                 card.due = int(time.time() + ((days + adjust) * 86400))
             else:
                 oldivl = card.ivl
-                card.ivl = card.ivl + ((first + days - card.due)/2)
+                card.ivl = int(card.ivl + ((first + days - card.due)/2))
                 card.due = first + days
                 
                 
@@ -395,7 +394,7 @@ class SickScheduler(QWidget):
     
     def grabDue(self, deck):
         if not deck:
-            return self.find.Finder(self.mw.col).findCards('is:due', order= ' c.ivl ')
+            return list(self.mw.col.find_cards('is:due', order= ' c.ivl '))
         else:
-            return self.find.Finder(self.mw.col).findCards('"deck:' + deck + '" "is:due"', order= ' c.ivl ')
+            return list(self.mw.col.find_cards('"deck:' + deck + '" "is:due"', order= ' c.ivl '))
 

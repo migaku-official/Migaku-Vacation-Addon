@@ -5,12 +5,10 @@ from os.path import  join, dirname
 import re
 from anki.hooks import addHook
 from aqt import mw
-import anki.find
 from aqt.qt import QAction
 from aqt.utils import showInfo
 from aqt.qt import *
 import json
-from . import Pyperclip
 from datetime import datetime
 from datetime import date
 from aqt.browser import DataModel
@@ -23,10 +21,9 @@ import random
 
 class MIRescheduler():
 
-    def __init__(self, mw, find, path):
+    def __init__(self, mw, path):
         self.restCalendar = {}
         self.mw = mw
-        self.find = find
         self.path = path
         self.reRepped = {}
         self.allCards = []
@@ -124,7 +121,7 @@ class MIRescheduler():
             return False
 
     def grabAllCards(self):
-        return self.find.Finder(self.mw.col).findCards('')
+        return list(self.mw.col.find_cards(''))
 
     def ifVacationOrOptimize(self, vacations, optimize, maintain):
         for prof in self.restCalendar:
@@ -502,14 +499,14 @@ class MIRescheduler():
         return time.mktime(datetime.strptime(date, "%Y,%m,%d").timetuple())
 
     def getReppedToday(self):
-        return len(self.find.Finder(self.mw.col).findCards('rated:1'))
+        return len(list(self.mw.col.find_cards('rated:1')))
 
     def deckLevelReppedToday(self):
         dids = self.mw.col.decks.allIds()
         for did in dids:
             strDid = str(did)
             dName = self.mw.col.decks.get(did)['name']
-            repped = len(self.find.Finder(self.mw.col).findCards('"rated:1" "deck:' + dName + '"'))
+            repped = len(list(self.mw.col.find_cards('"rated:1" "deck:' + dName + '"')))
             self.reRepped[strDid] = {}
             self.reRepped[strDid]["0"] = repped
 
@@ -517,14 +514,14 @@ class MIRescheduler():
         dids = self.mw.col.decks.allIds()
         for did in dids:
             dName = self.mw.col.decks.get(did)['name']
-            dRepped = len(self.find.Finder(self.mw.col).findCards('"is:due" "deck:' + dName + '"'))
+            dRepped = len(list(self.mw.col.find_cards('"is:due" "deck:' + dName + '"')))
             if dRepped == 0:
                 if did not in self.restCalendar:
                     self.restCalendar[did] = []
                 self.restCalendar[did].append(self.today)
 
     def getDueCount(self):
-        return len(self.find.Finder(self.mw.col).findCards('is:due'))
+        return len(list(self.mw.col.find_cards('is:due')))
 
     def retirementConflictCheck(self, repped):
         if self.optimize and hasattr(self.mw, "runMigakuRetirement"):
@@ -544,7 +541,7 @@ class MIRescheduler():
 
     def loopCol(self, edit = False, retirement = False, sickDay = False):
         self.initScheduler()
-        self.rescheduler.setupCalendars()
+        self.setupCalendars()
         self.creationOffset = self.mw.col.conf.get("creationOffset")
         self.config = self.getConfig()
         if self.creationOffset is not None:
@@ -640,10 +637,10 @@ class MIRescheduler():
         return restdays
 
     def grabLearning(self):
-        return self.find.Finder(self.mw.col).findCards('is:learn', order= '  c.reps  ')
+        return list(self.mw.col.find_cards('is:learn', order= '  c.reps  '))
 
     def grabReviews(self):
-        return self.find.Finder(self.mw.col).findCards('is:review', order= ' c.ivl ')
+        return list(self.mw.col.find_cards('is:review', order= ' c.ivl '))
 
 
     def getCurrentSched(self):

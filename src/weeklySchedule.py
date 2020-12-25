@@ -4,7 +4,6 @@ from aqt.qt import *
 from os.path import dirname, join
 from aqt.utils import showInfo
 from .miutils import miInfo, miAsk
-from . import Pyperclip
 from datetime import date
 
 
