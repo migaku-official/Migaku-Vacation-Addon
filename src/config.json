@@ -3,5 +3,7 @@
 	"runHistory" : {},
 	"runDaily" : false,
 	"maintainEase": false,
-	"optimizeSchedule" : 1
+	"optimizeSchedule" : 1,
+    "lastId": false, 
+    "displayAgain": true
 }
